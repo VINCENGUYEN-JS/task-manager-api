@@ -1,16 +1,15 @@
 const express = require("express");
 const router = new express.Router();
 const auth = require("../middleware/auth");
-
 const User = require("../models/user");
 
 router.post("/users", async (req, res) => {
-  const user = new User(req.body);
   try {
-    const data = await user.save();
+    const user = new User(req.body);
+    await user.save();
     const token = await user.generateToken();
     res.status(201).send({
-      data,
+      user,
       token,
     });
   } catch (err) {
@@ -53,7 +52,7 @@ router.get("/users/me", auth, async (req, res) => {
   res.send(req.user);
 });
 
-router.get("/users/:id", async (req, res) => {
+router.get("/users/:id", auth, async (req, res) => {
   const _id = req.params.id;
   try {
     const user = await User.findById(_id);
@@ -66,22 +65,18 @@ router.get("/users/:id", async (req, res) => {
   }
 });
 
-router.patch("/users/:id", async (req, res) => {
+router.patch("/users/me", auth, async (req, res) => {
   const updates = Object.keys(req.body);
   const allowedUpdated = ["name", "email", "password", "age"];
   const isValidOperation = updates.every((bodyKey) =>
     allowedUpdated.includes(bodyKey)
   );
+  const user = req.user;
 
   if (!isValidOperation)
     return res.status(400).send({ error: "Invalid update!" });
 
   try {
-    const _id = req.params.id;
-
-    const user = await User.findById(_id);
-    console.log(user);
-
     updates.forEach((bodyKey) => {
       user[bodyKey] = req.body[bodyKey];
     });
@@ -92,19 +87,17 @@ router.patch("/users/:id", async (req, res) => {
     //   new: true,
     //   runValidators: true,
     // });
-    if (!user) return res.status(404).send();
+
     return res.status(200).send(user);
   } catch (err) {
     return res.status(400).send(err);
   }
 });
 
-router.delete("/users/:id", async (req, res) => {
-  const _id = req.params.id;
+router.delete("/users/me", auth, async (req, res) => {
   try {
-    const user = await User.findByIdAndDelete(_id);
-    if (!user) return res.status(404).send();
-    return res.status(200).send(user);
+    await req.user.remove();
+    return res.status(200).send(req.user);
   } catch (err) {
     res.status(500).send();
   }
